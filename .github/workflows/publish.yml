@@ -37,9 +37,11 @@ jobs:
       - name: Run type check
         run: bun run typecheck
 
-      - name: Set version to YYYYMMDD-HHmm (GMT+7)
+      - name: Set version to semver-compatible date stamp (GMT+7)
         run: |
-          VERSION=$(TZ='Asia/Jakarta' date +"%Y%m%d-%H%M")
+          DATE=$(TZ='Asia/Jakarta' date +"%Y%m%d")
+          TIME=$(TZ='Asia/Jakarta' date +"%H%M")
+          VERSION="0.0.0-${DATE}.h${TIME}"
           echo "Setting package version to $VERSION"
           npm pkg set version="$VERSION"
 

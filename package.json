@@ -15,8 +15,8 @@
   "scripts": {
     "dev": "bun run --watch src/index.ts",
     "start": "bun run src/index.ts",
-    "build": "bun build src/index.ts --outfile dist/index.js --target node --format esm --sourcemap --external better-sqlite3 --external @azure/*",
-    "typecheck": "bunx tsc --noEmit",
+    "build": "bunx tsc -p tsconfig.build.json",
+    "typecheck": "bunx tsc -p tsconfig.json --noEmit",
     "prepublishOnly": "bun run build && bun run typecheck"
   },
   "publishConfig": {
@@ -24,10 +24,8 @@
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
-    "@types/bun": "latest"
-  },
-  "peerDependencies": {
-    "typescript": "^5"
+    "@types/bun": "latest",
+    "typescript": "^5.9.3"
   },
   "dependencies": {
     "@azure/ai-form-recognizer": "^5.1.0",

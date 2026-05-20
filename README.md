@@ -119,7 +119,7 @@ Add this MCP server to your Pi agent by editing the configuration file:
 
 Once published, you can use the package **without cloning** the repository.
 
-> **Note:** This package uses **date-based versioning** (`YYYYMMDD-HHmm`) in GMT+7 timezone. Example version: `20260520-1530`
+> **Note:** npm requires semver, so published versions use a semver-compatible date stamp in GMT+7, for example: `0.0.0-20260520.h1530`
 
 ### Using with `bunx` (recommended if you have Bun)
 
@@ -216,7 +216,7 @@ analyze_document(model, source)
 
 - Results are automatically cached based on the **file content hash** + model.
 - If you analyze the same file again with the same model, you get the cached result instantly.
-- Cache is stored in SQLite (`.cache/di-cache-YYYYMMDD-HHmm.sqlite` in GMT+7).
+- Cache is stored in SQLite (`DI_CACHE_PATH`, default: `.cache/di-cache.sqlite`).
 
 ### Supported File Types
 
