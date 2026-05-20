@@ -2,6 +2,10 @@
   "name": "@kaenova/document-intelligence-mcp",
   "version": "0.1.0",
   "description": "MCP server for Azure AI Document Intelligence with Read and Layout models",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kaenova/document-intelligence-mcp"
+  },
   "type": "module",
   "main": "dist/index.js",
   "module": "dist/index.js",
