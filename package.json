@@ -1,0 +1,38 @@
+{
+  "name": "@kaenova/document-intelligence-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for Azure AI Document Intelligence with Read and Layout models",
+  "type": "module",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "document-intelligence-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "dev": "bun run --watch src/index.ts",
+    "start": "bun run src/index.ts",
+    "build": "bun build src/index.ts --outfile dist/index.js --target node --format esm --sourcemap --external better-sqlite3 --external @azure/*",
+    "typecheck": "bunx tsc --noEmit",
+    "prepublishOnly": "bun run build && bun run typecheck"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@azure/ai-form-recognizer": "^5.1.0",
+    "better-sqlite3": "^12.10.0",
+    "fastmcp": "^4.0.1",
+    "zod": "^4.4.3"
+  }
+}
