@@ -7,14 +7,14 @@
     "url": "https://github.com/kaenova/document-intelligence-mcp"
   },
   "type": "module",
-  "main": "dist/index.js",
-  "module": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "engines": {
+    "bun": ">=1.3.8"
+  },
   "bin": {
-    "document-intelligence-mcp": "dist/index.js"
+    "document-intelligence-mcp": "src/index.ts"
   },
   "files": [
-    "dist"
+    "src"
   ],
   "scripts": {
     "dev": "bun run --watch src/index.ts",
@@ -27,13 +27,11 @@
     "access": "public"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.13",
     "@types/bun": "latest",
     "typescript": "^5.9.3"
   },
   "dependencies": {
     "@azure/ai-form-recognizer": "^5.1.0",
-    "better-sqlite3": "^12.10.0",
     "fastmcp": "^4.0.1",
     "zod": "^4.4.3"
   }

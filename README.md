@@ -5,7 +5,7 @@ MCP server for Azure AI Document Intelligence. Exposes a single `analyze_documen
 - **`read`** — OCR-only text extraction (fast, lightweight)
 - **`layout`** — Rich document understanding with tables, selection marks, and structure (recommended for complex documents)
 
-Results are automatically cached using SQLite (via `better-sqlite3`) for fast repeated analysis of the same document.
+Results are automatically cached using SQLite via Bun's built-in `bun:sqlite` module for fast repeated analysis of the same document.
 
 ---
 
@@ -13,8 +13,14 @@ Results are automatically cached using SQLite (via `better-sqlite3`) for fast re
 
 ### 1. Prerequisites
 
-- Bun runtime
+- Bun runtime (required)
 - Azure Document Intelligence resource (create one in Azure Portal if you don't have it)
+
+If you don't have Bun installed yet, install it first:
+
+```bash
+curl -fsSL https://bun.sh/install | bash
+```
 
 ### 2. Install Dependencies
 
@@ -48,6 +54,8 @@ The server runs in stdio mode and is ready to be used by any MCP-compatible clie
 ---
 
 ## Configuration in Agent Harness (Pi)
+
+> This MCP server is **Bun-only**. Use `bunx` or `bun run`; `npx`/Node.js execution is not supported.
 
 Add this MCP server to your Pi agent by editing the configuration file:
 
@@ -90,22 +98,7 @@ Add this MCP server to your Pi agent by editing the configuration file:
 }
 ```
 
-### Option 3: Using npx
 
-```json
-{
-  "mcpServers": {
-    "document-intelligence": {
-      "command": "npx",
-      "args": ["-y", "@kaenova/document-intelligence-mcp"],
-      "env": {
-        "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT": "https://your-resource.cognitiveservices.azure.com/",
-        "AZURE_DOCUMENT_INTELLIGENCE_KEY": "your-api-key"
-      }
-    }
-  }
-}
-```
 
 ### Notes
 
@@ -115,11 +108,13 @@ Add this MCP server to your Pi agent by editing the configuration file:
 
 ---
 
-## Installation via npm (Recommended for most users)
+## Installation via `bunx` (Recommended for most users)
 
 Once published, you can use the package **without cloning** the repository.
 
-> **Note:** npm requires semver, so published versions use a semver-compatible date stamp in GMT+7, for example: `0.0.0-20260520.h1530`
+> **Note:** This package is intended to run with Bun only. Install Bun first, then use `bunx` or `bun run`.
+>
+> npm requires semver, so published versions use a semver-compatible date stamp in GMT+7, for example: `0.0.0-20260520.h1530`
 
 ### Using with `bunx` (recommended if you have Bun)
 
@@ -138,22 +133,7 @@ Once published, you can use the package **without cloning** the repository.
 }
 ```
 
-### Using with `npx`
 
-```json
-{
-  "mcpServers": {
-    "document-intelligence": {
-      "command": "npx",
-      "args": ["-y", "@kaenova/document-intelligence-mcp"],
-      "env": {
-        "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT": "https://your-resource.cognitiveservices.azure.com/",
-        "AZURE_DOCUMENT_INTELLIGENCE_KEY": "your-api-key-here"
-      }
-    }
-  }
-}
-```
 
 ---
 
@@ -216,7 +196,7 @@ analyze_document(model, source)
 
 - Results are automatically cached based on the **file content hash** + model.
 - If you analyze the same file again with the same model, you get the cached result instantly.
-- Cache is stored in SQLite (`DI_CACHE_PATH`, default: `.cache/di-cache.sqlite`).
+- Cache is stored in SQLite via Bun (`DI_CACHE_PATH`, default: `.cache/di-cache.sqlite`).
 
 ### Supported File Types
 
