@@ -1,7 +1,8 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { FastMCP } from "fastmcp";
 import type { ServerConfig } from "./config.js";
-import { AnalyzeDocumentSchema, DownloadResultSchema } from "./tools/schemas.js";
+import { AnalyzeDocumentSchema, DownloadResultSchema, CreateUploadSchema } from "./tools/schemas.js";
+import { createUploadUrl } from "./tools/create-upload-url.js";
 import { analyzeDocument } from "./tools/analyze-document.js";
 import type { AnalysisDependencies } from "./tools/analyze-document.js";
 import { downloadResult } from "./tools/download-result.js";
@@ -31,14 +32,15 @@ export function createServer(config: ServerConfig, dependencies: AnalysisDepende
       }
       return { authenticated: true };
     },
-    instructions: "Analyze HTTPS documents to create retained Markdown result files. " +
+    instructions: "Use create_upload_url for local documents, PUT the file to S3, then analyze using fileId. " +
+      "Alternatively analyze an HTTPS source URL to create retained Markdown result files. " +
       "Use download_result with the returned resultId for a temporary S3 download link. " +
       "All clients using the shared bearer token share access to results; keep IDs and links private.",
   });
 
   server.addTool({
     name: "analyze_document",
-    description: "Analyze an HTTPS document using Azure AI Document Intelligence. " +
+    description: "Analyze an HTTPS source URL OR a completed uploaded fileId using Azure AI Document Intelligence. " +
       "Choose 'read' for OCR text or 'layout' for tables and rich structure. " +
       "Saves a private Markdown file to S3 and returns JSON with resultId and retention expiry. " +
       "Use download_result to retrieve a temporary download link. Local file paths are not accepted.",
@@ -49,6 +51,17 @@ export function createServer(config: ServerConfig, dependencies: AnalysisDepende
       log.info("Document analysis stored", { model: args.model, resultId: result.resultId });
       return JSON.stringify(result);
     },
+  });
+
+  server.addTool({
+    name: "create_upload_url",
+    description: "Create a private, create-only S3 presigned PUT URL for a document. " +
+      "Returns fileId, URL, method, required headers, and upload-link expiry. " +
+      "Upload the exact file bytes with ALL returned headers; only after a successful PUT, call analyze_document with fileId. " +
+      "Source files use FEATURE_RESULT_RETENTION_DAYS from upload completion. URL lifetime uses FEATURE_PRESIGNED_RETENTION_HOURS. " +
+      "The URL does not upload the file for you. Treat it as a secret.",
+    parameters: CreateUploadSchema,
+    execute: async (args) => JSON.stringify(await createUploadUrl(args, dependencies.uploads)),
   });
 
   server.addTool({

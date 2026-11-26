@@ -7,7 +7,7 @@ import type { S3Config, FeatureConfig } from "../src/config.js";
 const id = "70d6a4a5-9161-4ee3-98b0-591a754ec9ee";
 const time = Date.parse("2026-01-02T12:00:00Z");
 const config: S3Config = {
-  bucket: "results", region: "us-east-1", prefix: "test/results/", forcePathStyle: true,
+  bucket: "results", region: "us-east-1", prefix: "test/results/", uploadPrefix: "test/uploads/", forcePathStyle: true,
   endpoint: "https://s3.example.com", accessKeyId: "test-key", secretAccessKey: "test-secret",
 };
 

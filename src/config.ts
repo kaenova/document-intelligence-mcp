@@ -7,6 +7,7 @@ export interface S3Config {
   sessionToken?: string;
   forcePathStyle: boolean;
   prefix: string;
+  uploadPrefix: string;
 }
 
 export interface FeatureConfig {
@@ -51,6 +52,14 @@ function httpUrl(value: string, name: string, httpsOnly = false): string {
   return url.toString();
 }
 
+function objectPrefix(env: NodeJS.ProcessEnv, name: string, fallback: string): string {
+  const prefix = (env[name] ?? fallback).replace(/^\/+|\/+$/g, "");
+  if (!prefix || prefix.split("/").some((segment) => !segment || segment === "." || segment === "..")) {
+    throw new Error(`${name} must be a non-empty object prefix without empty, '.' or '..' segments`);
+  }
+  return `${prefix}/`;
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
   const accessKeyId = env.S3_ACCESS_KEY_ID?.trim() || undefined;
   const secretAccessKey = env.S3_SECRET_ACCESS_KEY?.trim() || undefined;
@@ -62,9 +71,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
   if (forcePathStyle !== "true" && forcePathStyle !== "false") {
     throw new Error("S3_FORCE_PATH_STYLE must be 'true' or 'false'");
   }
-  const prefix = (env.S3_PREFIX ?? "document-intelligence/results").replace(/^\/+|\/+$/g, "");
-  if (!prefix || prefix.split("/").some((segment) => !segment || segment === "." || segment === "..")) {
-    throw new Error("S3_PREFIX must be a non-empty object prefix without empty, '.' or '..' segments");
+  const prefix = objectPrefix(env, "S3_PREFIX", "document-intelligence/results");
+  const uploadPrefix = objectPrefix(env, "S3_UPLOAD_PREFIX", "document-intelligence/uploads");
+  if (prefix.startsWith(uploadPrefix) || uploadPrefix.startsWith(prefix)) {
+    throw new Error("S3_PREFIX and S3_UPLOAD_PREFIX must not overlap");
   }
   const authToken = required(env, "MCP_AUTH_TOKEN");
   if (/\s/.test(authToken)) throw new Error("MCP_AUTH_TOKEN must not contain whitespace");
@@ -90,7 +100,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
       secretAccessKey,
       sessionToken,
       forcePathStyle: forcePathStyle === "true",
-      prefix: `${prefix}/`,
+      prefix,
+      uploadPrefix,
     },
     features: {
       resultRetentionDays: positiveNumber(env, "FEATURE_RESULT_RETENTION_DAYS", 7, 36500, true),

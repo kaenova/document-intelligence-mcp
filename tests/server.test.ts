@@ -6,7 +6,9 @@ import { loadConfig } from "../src/config.js";
 import { createServer, startServer, isAuthorized } from "../src/server.js";
 import { analyzeDocument } from "../src/tools/analyze-document.js";
 import { downloadResult } from "../src/tools/download-result.js";
-import { AnalyzeDocumentSchema } from "../src/tools/schemas.js";
+import { AnalyzeDocumentSchema, CreateUploadSchema } from "../src/tools/schemas.js";
+import { createUploadUrl } from "../src/tools/create-upload-url.js";
+import { UserError } from "fastmcp";
 import type { ResultStore } from "../src/services/result-storage.js";
 import type { AnalysisDependencies } from "../src/tools/analyze-document.js";
 
@@ -19,11 +21,22 @@ const download = {
   resultId: id, filename: `${id}.md`, url: "https://s3.example.com/result?signature=secret",
   expiresAt: "2026-01-02T01:00:00Z", resultExpiresAt: stored.expiresAt,
 };
+const upload = {
+  fileId: id, filename: "invoice.pdf", method: "PUT" as const,
+  url: "https://s3.example.com/uploads?signature=SECRET",
+  headers: { "Content-Type": "application/pdf", "Content-Length": "123", "If-None-Match": "*" },
+  expiresAt: "2026-01-01T01:00:00Z", retentionDays: 7,
+};
 const analysis = { content: "Extracted document content", pages: [], tables: [] } as unknown as AnalyzeResult;
 function dependencies(): AnalysisDependencies {
   return {
     documentIntelligence: { analyzeDocument: async () => analysis },
     results: { save: async () => stored, download: async () => download },
+    uploads: {
+      createUpload: async () => upload,
+      resolve: async () => ({ fileId: id, filename: "invoice.pdf", url: "https://s3.example.com/uploads?SECRET",
+        uploadedAt: "2026-01-01T00:00:00Z", expiresAt: "2026-01-08T00:00:00Z" }),
+    },
   };
 }
 
@@ -40,6 +53,47 @@ describe("tool contracts and authentication", () => {
       expect(AnalyzeDocumentSchema.safeParse({ model: "layout", source }).success).toBe(false);
     });
   }
+
+  test("analysis accepts exactly one HTTPS source or uploaded file ID", () => {
+    expect(AnalyzeDocumentSchema.safeParse({ model: "layout", fileId: id }).success).toBe(true);
+    for (const params of [
+      { model: "read" }, { model: "read", fileId: "../secret" },
+      { model: "read", fileId: id, source: "https://example.com/doc.pdf" },
+    ]) expect(AnalyzeDocumentSchema.safeParse(params).success).toBe(false);
+  });
+
+  test("analyzes uploaded file IDs without storing the internal signed URL", async () => {
+    const deps = dependencies();
+    let source = "";
+    let markdown = "";
+    deps.documentIntelligence.analyzeDocument = async (value) => { source = value; return analysis; };
+    deps.results.save = async (value) => { markdown = value; return stored; };
+    expect(await analyzeDocument({ model: "read", fileId: id }, deps)).toEqual(stored);
+    expect(source).toBe("https://s3.example.com/uploads?SECRET");
+    expect(markdown).toContain(`Uploaded file ${id}`);
+    expect(markdown).not.toContain("SECRET");
+    expect(markdown).not.toContain("s3.example.com");
+  });
+
+  test("missing or expired uploads cannot reach Azure or produce results", async () => {
+    const deps = dependencies();
+    let invoked = false;
+    deps.uploads.resolve = async () => { throw new UserError("Uploaded file has expired"); };
+    deps.documentIntelligence.analyzeDocument = async () => { invoked = true; return analysis; };
+    await expect(analyzeDocument({ model: "read", fileId: id }, deps)).rejects.toThrow("expired");
+    expect(invoked).toBe(false);
+    deps.uploads.resolve = async () => { throw new Error("SECRET credentials"); };
+    await expect(analyzeDocument({ model: "read", fileId: id }, deps)).rejects.toThrow("Unable to access");
+  });
+
+  test("create_upload_url validates input and sanitizes storage failures", async () => {
+    const deps = dependencies();
+    expect(CreateUploadSchema.safeParse({ filename: "invoice.pdf", sizeBytes: 123 }).success).toBe(true);
+    expect(await createUploadUrl({ filename: "invoice.pdf", sizeBytes: 123 }, deps.uploads)).toEqual(upload);
+    await expect(createUploadUrl({ filename: "../../doc.pdf", sizeBytes: 123 }, deps.uploads)).rejects.toThrow("supported filename");
+    deps.uploads.createUpload = async () => { throw new Error("SECRET credential"); };
+    await expect(createUploadUrl({ filename: "invoice.pdf", sizeBytes: 123 }, deps.uploads)).rejects.toThrow("Unable to create");
+  });
 
   test("formats and stores analysis but never persists the source query credentials", async () => {
     const deps = dependencies();
@@ -80,7 +134,7 @@ describe("tool contracts and authentication", () => {
   });
 });
 
-test("Streamable HTTP enforces authentication and exposes both tools end to end", async () => {
+test("Streamable HTTP enforces authentication and exposes all tools end to end", async () => {
   // Bind a free loopback port for an actual HTTP protocol test, without Azure/S3 network calls.
   const probe = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: () => new Response() });
   const port = probe.port!;
@@ -103,10 +157,14 @@ test("Streamable HTTP enforces authentication and exposes both tools end to end"
     const browser = await fetch(url, { method: "POST", headers: { ...headers, Authorization: "Bearer test-token", Origin: "https://evil.example" }, body: requestBody });
     expect(browser.status).toBe(403);
     await client.connect(new StreamableHTTPClientTransport(url, { requestInit: { headers: { Authorization: "Bearer test-token" } } }));
-    expect((await client.listTools()).tools.map((tool) => tool.name).sort()).toEqual(["analyze_document", "download_result"]);
+    expect((await client.listTools()).tools.map((tool) => tool.name).sort()).toEqual(["analyze_document", "create_upload_url", "download_result"]);
     const result = await client.callTool({ name: "analyze_document", arguments: { model: "layout", source: "https://example.com/doc.pdf" } });
     const text = (result.content as { type: string; text: string }[])[0]!.text;
     expect(JSON.parse(text)).toEqual(stored);
+    const put = await client.callTool({ name: "create_upload_url", arguments: { filename: "invoice.pdf", sizeBytes: 123 } });
+    expect(JSON.parse((put.content as { type: string; text: string }[])[0]!.text)).toEqual(upload);
+    const uploaded = await client.callTool({ name: "analyze_document", arguments: { model: "layout", fileId: id } });
+    expect(JSON.parse((uploaded.content as { type: string; text: string }[])[0]!.text)).toEqual(stored);
     const link = await client.callTool({ name: "download_result", arguments: { resultId: id } });
     expect(JSON.parse((link.content as { type: string; text: string }[])[0]!.text)).toEqual(download);
     await expect(client.callTool({ name: "analyze_document", arguments: { model: "read", source: "/etc/passwd" } })).rejects.toThrow("parameter validation failed");
