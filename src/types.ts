@@ -3,7 +3,8 @@ export type AnalysisModel = "read" | "layout";
 
 export interface AnalyzeDocumentParams {
   model: AnalysisModel;
-  source: string;
+  source?: string;
+  fileId?: string;
 }
 
 export interface StoredResult {
@@ -13,6 +14,26 @@ export interface StoredResult {
   contentType: string;
   sizeBytes: number;
   createdAt: string;
+  expiresAt: string;
+}
+
+export interface UploadUrl {
+  fileId: string;
+  filename: string;
+  method: "PUT";
+  url: string;
+  headers: Record<string, string>;
+  /** Upload-link expiry, not source-file retention expiry. */
+  expiresAt: string;
+  retentionDays: number;
+}
+
+export interface UploadedDocument {
+  fileId: string;
+  filename: string;
+  /** Internal presigned GET for Azure; never included in analysis output. */
+  url: string;
+  uploadedAt: string;
   expiresAt: string;
 }
 

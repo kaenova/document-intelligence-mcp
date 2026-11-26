@@ -16,6 +16,7 @@ describe("configuration", () => {
     expect(config.features).toEqual({ resultRetentionDays: 7, presignedRetentionHours: 1 });
     expect(config.s3.accessKeyId).toBeUndefined();
     expect(config.s3.prefix).toBe("document-intelligence/results/");
+    expect(config.s3.uploadPrefix).toBe("document-intelligence/uploads/");
   });
 
   test("accepts S3-compatible configuration and temporary credentials", () => {
@@ -41,6 +42,7 @@ describe("configuration", () => {
     MCP_PORT: ["0", "65536", "1.5", "123abc"],
     S3_FORCE_PATH_STYLE: ["yes"],
     S3_PREFIX: ["", "/", "a/../b", "a//b"],
+    S3_UPLOAD_PREFIX: ["", "/", "a/../b", "a//b"],
   })) {
     for (const value of values) {
       test(`rejects ${name}=${JSON.stringify(value)}`, () => {
@@ -48,6 +50,13 @@ describe("configuration", () => {
       });
     }
   }
+
+  test("normalizes upload prefixes and rejects overlapping namespaces", () => {
+    expect(loadConfig({ ...env, S3_UPLOAD_PREFIX: "/custom/uploads/" }).s3.uploadPrefix).toBe("custom/uploads/");
+    for (const prefix of ["document-intelligence/results", "document-intelligence", "document-intelligence/results/nested"]) {
+      expect(() => loadConfig({ ...env, S3_UPLOAD_PREFIX: prefix })).toThrow("must not overlap");
+    }
+  });
 
   test("rejects partial S3 credentials", () => {
     expect(() => loadConfig({ ...env, S3_ACCESS_KEY_ID: "key" })).toThrow("supplied together");
