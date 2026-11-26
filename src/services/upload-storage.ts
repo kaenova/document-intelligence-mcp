@@ -61,7 +61,9 @@ export class UploadStorage implements UploadStore {
       "Content-Type": contentType,
       "Content-Length": String(sizeBytes),
       "If-None-Match": "*",
-      "Cache-Control": "private, no-store",
+      // RustFS rejects any Cache-Control value it normalises (e.g. "private, no-store",
+      // "no-cache") with SignatureDoesNotMatch on presigned PUTs; "no-store" is kept verbatim.
+      "Cache-Control": "no-store",
       ...Object.fromEntries(Object.entries(metadata).map(([key, value]) => [`x-amz-meta-${key}`, value])),
     };
     const signedHeaders = new Set(Object.keys(headers).map((key) => key.toLowerCase()));
@@ -71,7 +73,7 @@ export class UploadStorage implements UploadStore {
       ContentType: contentType,
       ContentLength: sizeBytes,
       IfNoneMatch: "*",
-      CacheControl: "private, no-store",
+      CacheControl: "no-store",
       Metadata: metadata,
     }), {
       expiresIn,
