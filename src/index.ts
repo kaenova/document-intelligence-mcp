@@ -1,39 +1,39 @@
 #!/usr/bin/env bun
-import { FastMCP } from "fastmcp";
-import { z } from "zod";
-import { AnalyzeDocumentSchema } from "./tools/schemas.js";
-import { analyzeDocument } from "./tools/analyze-document.js";
+import { loadConfig } from "./config.js";
+import { DocumentIntelligenceService } from "./services/document-intelligence.js";
+import { ResultStorage } from "./services/result-storage.js";
+import { createServer, startServer } from "./server.js";
 
-const server = new FastMCP({
-  name: "document-intelligence",
-  version: "0.1.0",
+async function main(): Promise<void> {
+  const config = loadConfig();
+  const results = new ResultStorage(config.s3, config.features);
+  const server = createServer(config, {
+    documentIntelligence: new DocumentIntelligenceService(config.azure),
+    results,
+  });
+  try {
+    await startServer(server, config);
+  } catch (error) {
+    results.close();
+    throw error;
+  }
+  console.error(`Document Intelligence MCP listening at http://${config.host}:${config.port}/mcp`);
+
+  let stopping = false;
+  const shutdown = async () => {
+    if (stopping) return;
+    stopping = true;
+    try {
+      await server.stop();
+    } finally {
+      results.close();
+    }
+  };
+  process.once("SIGINT", () => { void shutdown(); });
+  process.once("SIGTERM", () => { void shutdown(); });
+}
+
+main().catch((error: unknown) => {
+  console.error("Document Intelligence MCP failed to start:", error instanceof Error ? error.message : "Unknown error");
+  process.exitCode = 1;
 });
-
-server.addTool({
-  name: "analyze_document",
-  description: 
-    "Analyze a document using Azure AI Document Intelligence. " +
-    "Choose 'read' for OCR-only text extraction or 'layout' for rich structure including tables and selection marks. " +
-    "The 'source' parameter accepts either a local file path or a public URL (auto-detected). " +
-    "Results are cached for faster subsequent calls on unchanged documents.",
-  parameters: AnalyzeDocumentSchema,
-  execute: async (args, { log }) => {
-    log.info("Starting document analysis", { model: args.model, source: args.source });
-    
-    const result = await analyzeDocument(args);
-    
-    log.info("Document analysis completed", { 
-      model: args.model, 
-      source: args.source,
-      resultLength: result.length 
-    });
-    
-    return result;
-  },
-});
-
-server.start({
-  transportType: "stdio",
-});
-
-console.error("Document Intelligence MCP Server started (stdio mode)");
